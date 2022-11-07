@@ -115,3 +115,100 @@ class BatchDiscriminator(nn.Module):
 
         logit = torch.concat([union_logit, single_logit], dim=1)
         return logit
+
+
+class Discriminator(nn.Module):
+    def __init__(self, feature_dim, latent_dim):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.utils.weight_norm(nn.Linear(feature_dim, 2*feature_dim), dim=None),
+            # nn.LayerNorm([2*in_dim]),
+            nn.LeakyReLU(0.2),
+            nn.utils.weight_norm(nn.Linear(2*feature_dim, 2*feature_dim), dim=None),
+            # nn.LayerNorm([2*in_dim]),
+            nn.LeakyReLU(0.2),
+            nn.utils.weight_norm(nn.Linear(2*feature_dim, 2*feature_dim), dim=None),
+            # nn.LayerNorm([2*in_dim]),
+            nn.LeakyReLU(0.2),
+            nn.utils.weight_norm(nn.Linear(2*feature_dim, 2*feature_dim), dim=None),
+            # nn.LayerNorm([2*in_dim]),
+            nn.LeakyReLU(0.2),
+            nn.utils.weight_norm(nn.Linear(2*feature_dim, latent_dim), dim=None),
+        )
+
+        self.single_logit = nn.Sequential(
+            nn.utils.weight_norm(nn.Linear(latent_dim, 2*latent_dim), dim=None),
+            nn.LeakyReLU(0.2),
+            nn.utils.weight_norm(nn.Linear(2*latent_dim, latent_dim), dim=None),
+            nn.LeakyReLU(0.2),
+            nn.utils.weight_norm(nn.Linear(latent_dim, 1, bias=False), dim=None)
+        )
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(feature_dim, 2*feature_dim),
+        #     # nn.LayerNorm([2*in_dim]),
+        #     nn.LeakyReLU(0.2),
+        #     nn.Linear(2*feature_dim, 2*feature_dim),
+        #     # nn.LayerNorm([2*in_dim]),
+        #     nn.LeakyReLU(0.2),
+        #     nn.Linear(2*feature_dim, 2*feature_dim),
+        #     # nn.LayerNorm([2*in_dim]),
+        #     nn.LeakyReLU(0.2),
+        #     nn.Linear(2*feature_dim, 2*feature_dim),
+        #     # nn.LayerNorm([2*in_dim]),
+        #     nn.LeakyReLU(0.2),
+        #     nn.Linear(2*feature_dim, latent_dim),
+        # )
+
+        # self.single_logit = nn.Sequential(
+        #     nn.Linear(latent_dim, 2*latent_dim),
+        #     nn.LeakyReLU(0.2),
+        #     nn.Linear(2*latent_dim, latent_dim),
+        #     nn.LeakyReLU(0.2),
+        #     nn.Linear(latent_dim, 1, bias=False)
+        # )
+        self.union_batch = 2
+        self.union_logit = nn.Sequential(
+            nn.Conv1d(self.union_batch, self.union_batch*2, 1),
+            nn.LeakyReLU(0.2),
+            # nn.Conv1d(self.union_batch*2, self.union_batch*4, 1),
+            # nn.LeakyReLU(0.2),
+            # nn.Conv1d(self.union_batch*4, self.union_batch*2, 1),
+            # nn.LeakyReLU(0.2),
+            nn.Conv1d(self.union_batch*2, 1, 1),
+            nn.LeakyReLU(0.2),
+            nn.Flatten(),
+
+            nn.Linear(latent_dim, 2*latent_dim),
+            nn.LeakyReLU(0.2),
+            nn.Linear(2*latent_dim, latent_dim),
+            nn.LeakyReLU(0.2),
+            nn.Linear(latent_dim, 1, bias=False)
+        )
+        self.initialize_module(self)
+    def initialize_module(self, module):
+        for m in module.modules():
+            if isinstance(m, nn.Linear):
+                # nn.init.uniform_(m.weight, -0.02, 0.02)
+                # nn.init.kaiming_uniform_(m.weight, mode="fan_in", nonlinearity="leaky_relu")
+                # nn.init.kaiming_normal_(m.weight, mode="fan_in", nonlinearity="leaky_relu")
+                # nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="leaky_relu")
+                nn.init.orthogonal_(m.weight)
+                # nn.init.normal_(m.weight)
+                if m.bias is not None:
+                        nn.init.constant_(m.bias, 0)
+    def forward(self, x):
+        ff = self.encoder(x)
+        out = ff + torch.randn_like(ff).to('cuda')
+
+        single_logit = self.single_logit(out)
+
+        out = out.view(out.shape[0]//self.union_batch, self.union_batch, -1)
+        union_logit = self.union_logit(out)
+        union_logit = union_logit.repeat(self.union_batch, 1)
+
+        logit = torch.concat([union_logit, single_logit], dim=1)
+
+        return single_logit, ff
+
+        # single_logit = self.single_logit(out)
+        # return single_logit
