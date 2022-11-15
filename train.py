@@ -111,12 +111,12 @@ for step in range(1000000):
     if real_slide_window.shape[0] == 1000:
         rrrr = real_slide_window.sum()/1000.
         ffff = fake_slide_window.sum()/1000.
-        # if step%200==0 and (rrrr-ffff)/2.0 > 0.6:
-        #     fake_rate = fake_rate + 0.01
-        # if step%200==0 and (rrrr-ffff)/2.0 < 0.6:
-        #     fake_rate = fake_rate - 0.01
-        # if fake_rate < 0.01:
-        #     fake_rate = 0.01
+        if step%500==0 and (rrrr-ffff)/2.0 > 0.6:
+            fake_rate = fake_rate + 0.01
+        if step%500==0 and (rrrr-ffff)/2.0 < 0.6:
+            fake_rate = fake_rate - 0.01
+        if fake_rate < 0.01:
+            fake_rate = 0.01
 
         if  (rrrr+ffff) > 0.07 and (rrrr+ffff) >= last_aver2:
             feature_rate = feature_rate+0.01
